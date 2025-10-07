@@ -1,0 +1,92 @@
+import { useState } from "react";
+import { Hero } from "@/components/Hero";
+import { ImageUpload, AnalysisResult } from "@/components/ImageUpload";
+import { AnalysisResults } from "@/components/AnalysisResults";
+import { ChatInterface } from "@/components/ChatInterface";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Shield } from "lucide-react";
+
+type AppState = "hero" | "upload" | "results" | "chat";
+
+const Index = () => {
+  const [appState, setAppState] = useState<AppState>("hero");
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [currentImage, setCurrentImage] = useState<string>("");
+
+  const handleGetStarted = () => {
+    setAppState("upload");
+  };
+
+  const handleAnalysisComplete = (result: AnalysisResult) => {
+    setAnalysisResult(result);
+    setAppState("results");
+  };
+
+  const handleImageSelect = (imageUrl: string) => {
+    setCurrentImage(imageUrl);
+  };
+
+  const handleBack = () => {
+    if (appState === "results" || appState === "chat") {
+      setAppState("upload");
+      setAnalysisResult(null);
+    } else if (appState === "upload") {
+      setAppState("hero");
+    }
+  };
+
+  const handleAskQuestions = () => {
+    setAppState("chat");
+  };
+
+  if (appState === "hero") {
+    return <Hero onGetStarted={handleGetStarted} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-hero">
+      {/* Header */}
+      <header className="w-full py-6 px-4 sm:px-6 lg:px-8 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleBack}
+              className="hover:bg-primary/10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <Shield className="h-6 w-6 text-primary" />
+              <h1 className="text-xl font-bold text-foreground">MediQuip</h1>
+            </div>
+          </div>
+          {appState === "results" && (
+            <Button onClick={handleAskQuestions} variant="outline">
+              Ask Questions
+            </Button>
+          )}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="py-12 px-4 sm:px-6 lg:px-8">
+        {appState === "upload" && (
+          <ImageUpload
+            onAnalysisComplete={handleAnalysisComplete}
+            onImageSelect={handleImageSelect}
+          />
+        )}
+        {appState === "results" && analysisResult && (
+          <AnalysisResults result={analysisResult} />
+        )}
+        {appState === "chat" && (
+          <ChatInterface imageContext={analysisResult?.visualDescription} />
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default Index;
