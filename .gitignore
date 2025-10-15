@@ -7,18 +7,58 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Node / build
+node_modules/
+dist/
+dist-ssr/
+build/
+.vite/
+.cache/
+.parcel-cache/
+coverage/
+coverage-final.json
+.nyc_output/
+
+# Vite / frontend
+/.turbo
+/.parcel-cache
+
+# Env / secrets
+.env
+.env.local
+.env.*                # ignore any other env variants
+!.env.example         # except the example file (keep this committed)
+
+# Firebase / GCP service account files
+.firebase/
+serviceAccount*.json
+firebase-service-account.json
+google-credentials.json
+*.gserviceaccount.json
+
+# Keys, certs, other secrets
+*.key
+*.pem
+*.crt
+*.p12
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Misc
+*.log
+*.local
+*.env.backup
+*.env.*.backup
+
+# OS
+Thumbs.db
+desktop.ini
