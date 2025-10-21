@@ -20,6 +20,7 @@ export interface AnalysisResult {
 
 export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadProps) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const { toast } = useToast();
@@ -58,6 +59,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
   };
 
   const processImage = (file: File) => {
+    setSelectedFile(file);
     const reader = new FileReader();
     reader.onload = (e) => {
       const imageUrl = e.target?.result as string;
@@ -68,26 +70,37 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
   };
 
   const handleAnalyze = async () => {
-    if (!selectedImage) return;
+    if (!selectedFile) return;
 
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-skin`, {
+      const form = new FormData();
+      form.append('file', selectedFile, selectedFile.name);
+
+      const resp = await fetch(`http://localhost:${import.meta.env.VITE_DEV_SERVER_PORT || 3000}/upload`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ imageUrl: selectedImage }),
+        body: form,
       });
 
-      if (!response.ok) {
-        throw new Error('Analysis failed');
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        throw new Error(`Analysis failed: ${resp.status} ${text}`);
       }
 
-      const result = await response.json();
-      onAnalysisComplete({ ...result, imageUrl: selectedImage });
-      
+      const json = await resp.json();
+
+      // Server returns { imageUrl, analysis }
+      const result: AnalysisResult = {
+        visualDescription: typeof json.analysis === 'string' ? json.analysis : JSON.stringify(json.analysis),
+        possibilities: [],
+        concernLevel: 'Medium',
+        suggestions: [],
+        disclaimer: 'This is not medical advice. Consult a healthcare provider for diagnosis and treatment.',
+        imageUrl: json.imageUrl || selectedImage,
+      };
+
+      onAnalysisComplete(result);
+
       toast({
         title: "Analysis Complete",
         description: "Your image has been analyzed successfully.",
@@ -96,7 +109,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
       console.error('Analysis error:', error);
       toast({
         title: "Analysis Failed",
-        description: "There was an error analyzing your image. Please try again.",
+        description: (error instanceof Error && error.message) ? error.message : "There was an error analyzing your image. Please try again.",
         variant: "destructive",
       });
     } finally {

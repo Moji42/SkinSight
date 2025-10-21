@@ -1,49 +1,149 @@
 import express from "express";
 import multer from "multer";
-import admin from "firebase-admin";
-import { OpenAI } from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs/promises";
+import cors from 'cors';
 
 dotenv.config();
 
-const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsDir = path.join(__dirname, 'uploads');
 
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-  }),
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+// Create uploads directory if it doesn't exist
+try {
+  await fs.access(uploadsDir);
+} catch {
+  await fs.mkdir(uploadsDir, { recursive: true });
+}
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use('/uploads', express.static(uploadsDir));
+
+// Initialize Gemini AI with API version
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY, {
+  apiVersion: "v1" // Use stable v1 instead of beta
 });
 
-const bucket = admin.storage().bucket();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const imageModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const chatModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: uploadsDir,
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const upload = multer({ storage });
+
+// Image analysis endpoint
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const file = bucket.file(`uploads/${Date.now()}-${req.file.originalname}`);
-    await file.save(req.file.buffer, { contentType: req.file.mimetype });
-    const [url] = await file.getSignedUrl({ action: "read", expires: Date.now() + 10 * 60 * 1000 });
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
-    const result = await openai.responses.create({
-      model: process.env.OPENAI_MODEL_WITH_VISION,
-      input: [
-        { role: "user", content: `Describe this image: ${url}` },
-      ],
-    });
+    const imagePath = path.join(uploadsDir, req.file.filename);
+    const imageBytes = await fs.readFile(imagePath);
+    const fileUrl = `http://localhost:${process.env.PORT || 3000}/uploads/${req.file.filename}`;
 
+    // Retry logic for handling overloaded service
+    const maxRetries = 3;
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await imageModel.generateContent({
+          contents: [{
+            role: 'user',
+            parts: [
+              { text: "Analyze this skin image and describe what you see, including any potential skin conditions or concerns:" },
+              {
+                inlineData: {
+                  mimeType: req.file.mimetype,
+                  data: imageBytes.toString("base64")
+                }
+              }
+            ]
+          }]
+        });
+        
+        // If successful, return the result
+        const response = await result.response;
+        return res.json({
+          imageUrl: fileUrl,
+          analysis: response.text(),
+        });
+      } catch (error) {
+        lastError = error;
+        if (error.status === 503) {
+          // If service is overloaded, wait before retrying
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          console.log(`Attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        // If it's not an overload error, throw immediately
+        throw error;
+      }
+    }
+    
+    // If we get here, all retries failed
+    throw lastError;
+
+    const response = await result.response;
+    
     res.json({
-      imageUrl: url,
-      analysis: result.output[0].content[0].text,
+      imageUrl: fileUrl,
+      analysis: response.text(),
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    console.error('Error details:', err);
+    res.status(500).json({ 
+      error: "Analysis failed", 
+      details: err.message || "Something went wrong"
+    });
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log("✅ Server running on port", process.env.PORT || 3000);
+// Chat endpoint
+app.post("/chat", async (req, res) => {
+  try {
+    const { messages, imageContext } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Invalid messages format" });
+    }
+
+    // For chat, we'll use the latest message directly without history
+    const result = await chatModel.generateContent({
+      contents: [{
+        role: 'user',
+        parts: [{ text: messages[messages.length - 1].content }]
+      }]
+    });
+
+    const response = await result.response;
+
+    res.json({
+      response: response.text(),
+    });
+  } catch (err) {
+    console.error('Chat error:', err);
+    res.status(500).json({ 
+      error: "Chat failed", 
+      details: err.message || "Something went wrong" 
+    });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("✅ Server running on port", PORT);
 });
