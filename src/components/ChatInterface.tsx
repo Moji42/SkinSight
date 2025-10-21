@@ -15,7 +15,16 @@ interface ChatInterfaceProps {
 }
 
 export const ChatInterface = ({ imageContext }: ChatInterfaceProps) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    // Initialize with image context if available
+    if (imageContext) {
+      return [{
+        role: "assistant",
+        content: `Based on the image analysis, here's what I found: ${imageContext}`
+      }];
+    }
+    return [];
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

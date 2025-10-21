@@ -121,12 +121,14 @@ app.post("/chat", async (req, res) => {
       return res.status(400).json({ error: "Invalid messages format" });
     }
 
-    // For chat, we'll use the latest message directly without history
+    // Convert the frontend messages to the format expected by Gemini
+    const history = messages.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
     const result = await chatModel.generateContent({
-      contents: [{
-        role: 'user',
-        parts: [{ text: messages[messages.length - 1].content }]
-      }]
+      contents: history
     });
 
     const response = await result.response;
