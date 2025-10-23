@@ -63,7 +63,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           contents: [{
             role: 'user',
             parts: [
-              { text: "Analyze this skin image and describe what you see, including any potential skin conditions or concerns:" },
+              { text: "Analyze this skin image and provide your response in two sections:\n\n1. Possible Conditions: List potential skin conditions that match the visual characteristics. Remember to note that these are possibilities based on visual characteristics only and accurate diagnosis requires a healthcare professional.\n\n2. General Care Suggestions: Provide general care and management suggestions that would be appropriate for the visible symptoms.\n\nFormat your response in a structured way that can be easily parsed into these two sections." },
               {
                 inlineData: {
                   mimeType: req.file.mimetype,
@@ -74,11 +74,54 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           }]
         });
         
-        // If successful, return the result
+        // If successful, parse and return the structured result
         const response = await result.response;
+        const text = response.text();
+        
+        // Parse the response into sections using markdown headers
+        const possibleConditionsMatch = text.match(/### 1\. Possible Conditions([^]*?)(?=\*\*\*)/s);
+        const generalCareMatch = text.match(/### 2\. General Care Suggestions([^]*?)$/s);
+        
+        const possibleConditions = possibleConditionsMatch ? possibleConditionsMatch[1].trim() : '';
+        const generalCare = generalCareMatch ? generalCareMatch[1].trim() : '';
+
+        // Get initial description before the headers
+        const initialDescription = text.split('###')[0].trim();
+        
+        // Convert text into structured lists and descriptions
+        const possibilitiesList = possibleConditions
+          .split('\n')
+          .filter(line => line.trim().startsWith('*'))
+          .map(line => {
+            const match = line.match(/\*\*([^:]*)\*\*:(.*)/);
+            if (match) {
+              // Return both the condition name and its description
+              return {
+                condition: match[1].trim(),
+                description: match[2].trim()
+              };
+            }
+            return null;
+          })
+          .filter(item => item !== null);
+          
+        const suggestionsList = generalCare
+          .split('\n')
+          .filter(line => line.trim().startsWith('*') && !line.includes('**'))
+          .map(line => line.replace(/^\*\s*/, '').trim())
+          .filter(item => item.length > 0);
+        
+        console.log('Parsed Lists:', {
+          possibilitiesList,
+          suggestionsList
+        });
+        
         return res.json({
           imageUrl: fileUrl,
-          analysis: response.text(),
+          visualDescription: initialDescription,
+          possibilities: possibilitiesList,
+          suggestions: suggestionsList,
+          fullAnalysis: text,
         });
       } catch (error) {
         lastError = error;

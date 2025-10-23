@@ -9,9 +9,14 @@ interface ImageUploadProps {
   onImageSelect: (imageUrl: string) => void;
 }
 
+interface PossibleCondition {
+  condition: string;
+  description: string;
+}
+
 export interface AnalysisResult {
   visualDescription: string;
-  possibilities: string[];
+  possibilities: PossibleCondition[];
   concernLevel: "Low" | "Medium";
   suggestions: string[];
   disclaimer: string;
@@ -89,13 +94,13 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
 
       const json = await resp.json();
 
-      // Server returns { imageUrl, analysis }
+      // Use the structured lists directly from the server response
       const result: AnalysisResult = {
-        visualDescription: typeof json.analysis === 'string' ? json.analysis : JSON.stringify(json.analysis),
-        possibilities: [],
+        visualDescription: json.fullAnalysis,
+        possibilities: json.possibilities || [],
         concernLevel: 'Medium',
-        suggestions: [],
-        disclaimer: 'This is not medical advice. Consult a healthcare provider for diagnosis and treatment.',
+        suggestions: json.suggestions || [],
+        disclaimer: 'This is not medical advice. Please consult a healthcare provider for accurate diagnosis and treatment.',
         imageUrl: json.imageUrl || selectedImage,
       };
 

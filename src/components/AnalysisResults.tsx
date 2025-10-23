@@ -41,7 +41,7 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
         <div className="flex items-start gap-3">
           <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
           <div className="space-y-2">
-            <h4 className="font-semibold text-foreground">Visual Description</h4>
+            <h4 className="font-semibold text-foreground">Analysis Summary</h4>
             <p className="text-muted-foreground">{result.visualDescription}</p>
           </div>
         </div>
@@ -54,13 +54,22 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
             <AlertCircle className="h-5 w-5 text-accent" />
             <h4 className="font-semibold text-foreground">Possible Conditions</h4>
           </div>
-          <ul className="space-y-2">
-            {result.possibilities.map((possibility, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <span className="text-primary mt-1">•</span>
-                <span className="text-muted-foreground">{possibility}</span>
-              </li>
-            ))}
+          <ul className="space-y-4">
+            {Array.isArray(result.possibilities) && result.possibilities.length > 0 ? (
+              result.possibilities.map((possibility, index) => (
+                <li key={index} className="flex flex-col gap-1">
+                  <div className="flex items-start gap-2">
+                    <span className="text-primary mt-1">•</span>
+                    <span className="font-medium text-foreground">{possibility.condition}</span>
+                  </div>
+                  {possibility.description && (
+                    <p className="text-sm text-muted-foreground ml-6">{possibility.description}</p>
+                  )}
+                </li>
+              ))
+            ) : (
+              <li className="text-muted-foreground">No conditions identified.</li>
+            )}
           </ul>
           <p className="text-xs text-muted-foreground italic">
             Note: These are general possibilities based on visual characteristics only. 
@@ -77,12 +86,16 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
             <h4 className="font-semibold text-foreground">General Care Suggestions</h4>
           </div>
           <ul className="space-y-3">
-            {result.suggestions.map((suggestion, index) => (
-              <li key={index} className="flex items-start gap-3">
-                <div className="mt-1 h-1.5 w-1.5 rounded-full bg-secondary flex-shrink-0" />
-                <span className="text-muted-foreground">{suggestion}</span>
-              </li>
-            ))}
+            {Array.isArray(result.suggestions) && result.suggestions.length > 0 ? (
+              result.suggestions.map((suggestion, index) => (
+                <li key={index} className="flex items-start gap-3">
+                  <div className="mt-1 h-1.5 w-1.5 rounded-full bg-secondary flex-shrink-0" />
+                  <span className="text-muted-foreground">{suggestion}</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-muted-foreground">No care suggestions available.</li>
+            )}
           </ul>
         </div>
       </Card>
