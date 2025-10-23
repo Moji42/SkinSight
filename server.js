@@ -78,37 +78,52 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         const response = await result.response;
         const text = response.text();
         
-        // Parse the response into sections using markdown headers
-        const possibleConditionsMatch = text.match(/### 1\. Possible Conditions([^]*?)(?=\*\*\*)/s);
-        const generalCareMatch = text.match(/### 2\. General Care Suggestions([^]*?)$/s);
+        // Parse the response into sections using more flexible pattern matching
+        const possibleConditionsMatch = text.match(/(?:### )?(?:1\. )?Possible Conditions:?([^]*?)(?=(?:### )?(?:2\. )?General Care Suggestions|$)/si);
+        const generalCareMatch = text.match(/(?:### )?(?:2\. )?General Care Suggestions:?([^]*?)$/si);
         
         const possibleConditions = possibleConditionsMatch ? possibleConditionsMatch[1].trim() : '';
         const generalCare = generalCareMatch ? generalCareMatch[1].trim() : '';
 
-        // Get initial description before the headers
-        const initialDescription = text.split('###')[0].trim();
+        // Get initial description before any sections
+        const initialDescription = text.split(/(?:### )?(?:1\. )?Possible Conditions/i)[0].trim();
         
-        // Convert text into structured lists and descriptions
+        // Convert text into structured lists and descriptions with more flexible parsing
         const possibilitiesList = possibleConditions
           .split('\n')
-          .filter(line => line.trim().startsWith('*'))
+          .filter(line => {
+            const trimmedLine = line.trim();
+            return trimmedLine.startsWith('*') || trimmedLine.startsWith('-') || trimmedLine.startsWith('•');
+          })
           .map(line => {
-            const match = line.match(/\*\*([^:]*)\*\*:(.*)/);
+            // Try to match both markdown-style and plain text formats
+            const markdownMatch = line.match(/[*\-•]\s*\*\*([^:]*?)\*\*:?(.*)/);
+            const plainMatch = line.match(/[*\-•]\s*([^:]*):?(.*)/);
+            const match = markdownMatch || plainMatch;
+            
             if (match) {
-              // Return both the condition name and its description
               return {
                 condition: match[1].trim(),
-                description: match[2].trim()
+                description: (match[2] || '').trim()
               };
             }
-            return null;
-          })
-          .filter(item => item !== null);
+            // Fallback: treat the whole line as a condition if no description
+            return {
+              condition: line.replace(/^[*\-•]\s*/, '').trim(),
+              description: ''
+            };
+          });
           
         const suggestionsList = generalCare
           .split('\n')
-          .filter(line => line.trim().startsWith('*') && !line.includes('**'))
-          .map(line => line.replace(/^\*\s*/, '').trim())
+          .filter(line => {
+            const trimmedLine = line.trim();
+            return (trimmedLine.startsWith('*') || 
+                   trimmedLine.startsWith('-') || 
+                   trimmedLine.startsWith('•')) &&
+                   !trimmedLine.includes('**These suggestions');
+          })
+          .map(line => line.replace(/^[*\-•]\s*/, '').trim())
           .filter(item => item.length > 0);
         
         console.log('Parsed Lists:', {
