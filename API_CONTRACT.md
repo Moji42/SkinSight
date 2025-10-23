@@ -1,6 +1,6 @@
 # MediQuip AI API Contract
 
-This document is the single source of truth for the AI Vision API. The backend must produce a JSON object that strictly follows this structure, and the frontend will be built to consume it.
+This document is the source for the AI Vision API. The backend must produce a JSON object that strictly follows this structure, and the frontend will be built to consume it.
 
 ---
 
