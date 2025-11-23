@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2, Bot, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   role: "user" | "assistant";
@@ -63,7 +64,7 @@ export const ChatInterface = ({ imageContext }: ChatInterfaceProps) => {
         role: "assistant",
         content: data.response,
       };
-      
+
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Chat error:', error);
@@ -108,9 +109,8 @@ export const ChatInterface = ({ imageContext }: ChatInterfaceProps) => {
               messages.map((message, index) => (
                 <div
                   key={index}
-                  className={`flex gap-3 ${
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"
+                    }`}
                 >
                   {message.role === "assistant" && (
                     <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -118,13 +118,29 @@ export const ChatInterface = ({ imageContext }: ChatInterfaceProps) => {
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                      message.role === "user"
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-foreground"
-                    }`}
+                      }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.role === "user" ? (
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    ) : (
+                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown
+                          components={{
+                            h3: ({ node, ...props }) => <h3 className="text-lg font-bold text-foreground/90 mt-4 mb-2 text-center" {...props} />,
+                            h4: ({ node, ...props }) => <h4 className="text-base font-semibold text-foreground/80 mt-3 mb-2" {...props} />,
+                            ul: ({ node, ...props }) => <ul className="list-disc pl-6 space-y-1 my-2" {...props} />,
+                            li: ({ node, ...props }) => <li className="text-foreground/90" {...props} />,
+                            p: ({ node, ...props }) => <p className="leading-relaxed mb-2 last:mb-0" {...props} />,
+                            strong: ({ node, ...props }) => <strong className="font-semibold text-foreground" {...props} />,
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                   {message.role === "user" && (
                     <div className="flex-shrink-0 h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center">
