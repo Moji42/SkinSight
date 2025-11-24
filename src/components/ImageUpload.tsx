@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, X, Loader2, AlertCircle, Camera } from "lucide-react";
+import { Upload, X, Loader2, AlertCircle, Camera, Download, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { WebcamCapture } from "./WebcamCapture";
 
@@ -18,20 +18,118 @@ interface PossibleCondition {
 export interface AnalysisResult {
   visualDescription: string;
   possibilities: PossibleCondition[];
-  concernLevel: "Low" | "Medium";
+  concernLevel: "Low" | "Medium" | "High";
   suggestions: string[];
   disclaimer: string;
   imageUrl: string;
 }
 
 export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadProps) => {
+  const SAMPLE_IMAGE_PATH = "/mnt/data/question to answer.png"; // local test image path you asked for
+  const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB cap
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showWebcam, setShowWebcam] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [autoAnalyze, setAutoAnalyze] = useState<boolean>(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
+  // --- helpers ---
+  const showError = (title: string, description?: string) =>
+    toast({ title, description, variant: "destructive" });
+
+  const validateFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      showError("Invalid file type", "Please upload an image (jpg, png, etc.).");
+      return false;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      showError("File too large", `Please upload an image smaller than ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB.`);
+      return false;
+    }
+    return true;
+  };
+
+  // client-side compression: if image > 2MB, downscale to lower quality
+  const compressIfNeeded = async (file: File) : Promise<Blob> => {
+    if (file.size <= 2 * 1024 * 1024) return file; // under 2MB: skip
+    return new Promise<Blob>((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 1600; // clamp large images
+        let w = img.width;
+        let h = img.height;
+        if (Math.max(w, h) > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          reject(new Error("Canvas not supported"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(url);
+          if (!blob) {
+            reject(new Error("Compression failed"));
+            return;
+          }
+          resolve(blob);
+        }, "image/jpeg", 0.85);
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Image load error"));
+      };
+      img.src = url;
+    });
+  };
+
+  // convert blob/dataURL to File for upload
+  const blobToFile = (blob: Blob, name = `upload-${Date.now()}.jpg`) =>
+    new File([blob], name, { type: blob.type || "image/jpeg" });
+
+  // read file as dataURL and set preview
+  const setPreviewFromFile = (file: File | Blob) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageUrl = e.target?.result as string;
+      setSelectedImage(imageUrl);
+      onImageSelect(imageUrl);
+    };
+    reader.onerror = () => showError("Preview failed", "Could not read the image for preview.");
+    reader.readAsDataURL(file);
+  };
+
+  // process image chosen either by file input/drop/webcam
+  const processImage = async (file: File) => {
+    if (!validateFile(file)) return;
+    try {
+      // compress if needed (returns Blob)
+      const blob = await compressIfNeeded(file);
+      const finalFile = blob instanceof File ? blob : blobToFile(blob, file.name);
+      setSelectedFile(finalFile);
+      setPreviewFromFile(finalFile);
+      if (autoAnalyze) {
+        analyzeFile(finalFile);
+      }
+    } catch (err) {
+      console.error("Process image error:", err);
+      showError("Image processing failed", (err instanceof Error && err.message) ? err.message : undefined);
+    }
+  };
+
+  // --- drag & drop handlers ---
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -45,199 +143,254 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      processImage(file);
-    } else {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload an image file (JPG, PNG, etc.)",
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    processImage(file);
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file) processImage(file);
+  };
+
+  // loads sample image from local path (for testing). note: in the browser this path must be accessible.
+  const loadSample = async () => {
+    try {
+      // attempt to fetch sample path as blob (works in environments that can serve local file)
+      const res = await fetch(SAMPLE_IMAGE_PATH);
+      if (!res.ok) {
+        showError("Sample load failed", `Could not fetch ${SAMPLE_IMAGE_PATH}`);
+        return;
+      }
+      const blob = await res.blob();
+      const file = blobToFile(blob, "sample.png");
       processImage(file);
+    } catch (err) {
+      console.error("Sample load error:", err);
+      showError("Sample load failed", "Ensure the sample path is reachable from the browser.");
     }
   };
 
-  const processImage = (file: File) => {
-    setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const imageUrl = e.target?.result as string;
-      setSelectedImage(imageUrl);
-      onImageSelect(imageUrl);
-    };
-    reader.readAsDataURL(file);
-  };
-
+  // --- analysis with upload progress via XHR ---
   const analyzeFile = async (file: File) => {
     setIsAnalyzing(true);
+    setUploadProgress(0);
     try {
       const form = new FormData();
-      form.append('file', file, file.name);
+      form.append("file", file, file.name);
 
-      const resp = await fetch(`http://localhost:${import.meta.env.VITE_DEV_SERVER_PORT || 3000}/upload`, {
-        method: 'POST',
-        body: form,
+      // prefer XHR to report upload progress
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const port = import.meta.env.VITE_DEV_SERVER_PORT || 3000;
+        xhr.open("POST", `http://localhost:${port}/upload`, true);
+
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const pct = Math.round((ev.loaded / ev.total) * 100);
+            setUploadProgress(pct);
+          }
+        };
+
+        xhr.onload = () => {
+          setUploadProgress(null);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const json = JSON.parse(xhr.responseText);
+              // build AnalysisResult from server response
+              const result: AnalysisResult = {
+                visualDescription: json.fullAnalysis || "No description provided.",
+                possibilities: json.possibilities || [],
+                concernLevel: json.concernLevel || "Medium",
+                suggestions: json.suggestions || [],
+                disclaimer: "This is not medical advice. Please consult a healthcare provider.",
+                imageUrl: json.imageUrl || selectedImage || "",
+              };
+              onAnalysisComplete(result);
+              toast({ title: "Analysis complete", description: "Image analyzed successfully." });
+              resolve();
+            } catch (err) {
+              reject(new Error("Invalid server response"));
+            }
+          } else {
+            reject(new Error(`Server returned ${xhr.status}: ${xhr.responseText}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          setUploadProgress(null);
+          reject(new Error("Upload failed due to network error"));
+        };
+
+        xhr.send(form);
       });
-
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        throw new Error(`Analysis failed: ${resp.status} ${text}`);
-      }
-
-      const json = await resp.json();
-
-      // Use the structured lists directly from the server response
-      const result: AnalysisResult = {
-        visualDescription: json.fullAnalysis,
-        possibilities: json.possibilities || [],
-        concernLevel: 'Medium',
-        suggestions: json.suggestions || [],
-        disclaimer: 'This is not medical advice. Please consult a healthcare provider for accurate diagnosis and treatment.',
-        imageUrl: json.imageUrl || (selectedImage as string),
-      };
-
-      onAnalysisComplete(result);
-
-      toast({
-        title: "Analysis Complete",
-        description: "Your image has been analyzed successfully.",
-      });
-    } catch (error) {
-      console.error('Analysis error:', error);
-      toast({
-        title: "Analysis Failed",
-        description: (error instanceof Error && error.message) ? error.message : "There was an error analyzing your image. Please try again.",
-        variant: "destructive",
-      });
+    } catch (err) {
+      console.error("Analysis error:", err);
+      showError("Analysis failed", (err instanceof Error && err.message) ? err.message : undefined);
     } finally {
       setIsAnalyzing(false);
+      setUploadProgress(null);
     }
   };
 
-  const handleAnalyze = async () => {
-    if (!selectedFile) return;
-    await analyzeFile(selectedFile);
-  };
-
+  // called when webcam returns a file
   const handleWebcamCapture = (file: File) => {
     setShowWebcam(false);
     processImage(file);
-    // Immediate analysis after capture as per requirements
-    analyzeFile(file);
+    // if autoAnalyze is true, processImage does analyze
   };
 
   const handleRemoveImage = () => {
     setSelectedImage(null);
     setSelectedFile(null);
+    setUploadProgress(null);
   };
 
-  if (showWebcam) {
-    return (
-      <div className="w-full max-w-4xl mx-auto space-y-6">
-        <WebcamCapture
-          onCapture={handleWebcamCapture}
-          onCancel={() => setShowWebcam(false)}
-        />
-      </div>
-    );
-  }
+  const downloadImage = () => {
+    if (!selectedImage) return;
+    const a = document.createElement("a");
+    a.href = selectedImage;
+    a.download = `skin-upload-${Date.now()}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
-      <Card className="p-8 border-2 border-dashed border-border bg-card shadow-card">
-        {!selectedImage ? (
-          <div
-            className={`relative transition-colors duration-200 ${isDragging ? 'bg-primary/5' : ''
-              }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <div className="flex flex-col items-center justify-center py-12 space-y-4">
-              <div className="p-4 bg-primary/10 rounded-full">
-                <Upload className="h-12 w-12 text-primary" />
-              </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-lg font-semibold text-foreground">Upload an image of your skin condition</h3>
-                <p className="text-sm text-muted-foreground">
-                  Drag and drop an image here, or click to select
-                </p>
-              </div>
-              <div className="flex gap-4">
-                <Button variant="outline" onClick={() => document.getElementById('file-input')?.click()}>
-                  Select Image
-                </Button>
-                <Button variant="outline" onClick={() => setShowWebcam(true)}>
-                  <Camera className="mr-2 h-4 w-4" />
-                  Use Webcam
-                </Button>
-              </div>
-              <input
-                id="file-input"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="relative rounded-lg overflow-hidden bg-muted">
-              <img
-                src={selectedImage}
-                alt="Selected skin condition"
-                className="w-full h-auto max-h-96 object-contain"
-              />
-              <button
-                onClick={handleRemoveImage}
-                className="absolute top-4 right-4 p-2 bg-card rounded-full shadow-elegant hover:bg-destructive hover:text-destructive-foreground transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <Button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing}
-              className="w-full"
-              size="lg"
-            >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                'Analyze Image'
-              )}
-            </Button>
-          </div>
-        )}
-      </Card>
-
-      {/* Disclaimer */}
-      <Card className="p-6 bg-warning/5 border-warning/20">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-          <div className="space-y-2 text-sm">
-            <p className="font-semibold text-foreground">Before you proceed:</p>
-            <ul className="space-y-1 text-muted-foreground">
-              <li>• This tool provides educational information only</li>
-              <li>• Not a substitute for professional medical advice</li>
-              <li>• For serious concerns, consult a healthcare provider immediately</li>
-              <li>• Your images are analyzed securely and not permanently stored</li>
-            </ul>
-          </div>
+      {showWebcam ? (
+        <div className="w-full max-w-4xl mx-auto space-y-6">
+          <WebcamCapture onCapture={handleWebcamCapture} onCancel={() => setShowWebcam(false)} />
         </div>
-      </Card>
+      ) : (
+        <>
+          <Card className="p-8 border-2 border-dashed border-border bg-card shadow-card">
+            {!selectedImage ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    fileInputRef.current?.click();
+                  }
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative transition-colors duration-200 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary p-6 ${isDragging ? "bg-primary/5" : ""}`}
+              >
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <div className="p-4 bg-primary/10 rounded-full">
+                    <Upload className="h-12 w-12 text-primary" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-lg font-semibold text-foreground">Upload an image of your skin condition</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Drag and drop an image here, or click to select
+                    </p>
+                  </div>
+                  <div className="flex gap-4 mt-2">
+                    <Button variant="outline" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                      Select Image
+                    </Button>
+                    <Button variant="outline" onClick={(e) => { e.stopPropagation(); setShowWebcam(true); }}>
+                      <Camera className="mr-2 h-4 w-4" />
+                      Use Webcam
+                    </Button>
+                    <Button variant="ghost" onClick={(e) => { e.stopPropagation(); loadSample(); }} title="Load sample image">
+                      Load sample
+                    </Button>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    id="file-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative rounded-lg overflow-hidden bg-muted">
+                  <img
+                    src={selectedImage}
+                    alt="Selected skin condition"
+                    className="w-full h-auto max-h-96 object-contain"
+                  />
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    <Button variant="ghost" onClick={downloadImage} title="Download image">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <Button variant="destructive" onClick={handleRemoveImage} title="Remove image">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoAnalyze}
+                      onChange={(e) => setAutoAnalyze(e.target.checked)}
+                      className="accent-primary"
+                    />
+                    <span>Auto analyze after select</span>
+                  </label>
+                  <div className="ml-auto text-sm text-muted-foreground">
+                    {uploadProgress !== null ? `Uploading: ${uploadProgress}%` : isAnalyzing ? "Analyzing..." : ""}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => selectedFile && analyzeFile(selectedFile)}
+                    disabled={isAnalyzing}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      "Analyze Image"
+                    )}
+                  </Button>
+                  <Button variant="outline" onClick={() => { setSelectedImage(null); setSelectedFile(null); }}>
+                    Replace
+                  </Button>
+                </div>
+
+                {uploadProgress !== null && (
+                  <div className="w-full bg-muted rounded h-2 overflow-hidden">
+                    <div className="h-2 bg-primary transition-all" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-6 bg-warning/5 border-warning/20">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+              <div className="space-y-2 text-sm">
+                <p className="font-semibold text-foreground">Before you proceed:</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  <li>• This tool provides educational information only</li>
+                  <li>• Not a substitute for professional medical advice</li>
+                  <li>• For serious concerns, consult a healthcare provider immediately</li>
+                  <li>• Your images are analyzed securely and not permanently stored</li>
+                </ul>
+              </div>
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 };
