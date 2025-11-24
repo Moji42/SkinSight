@@ -201,7 +201,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
               const result: AnalysisResult = {
                 visualDescription: json.fullAnalysis || "No description provided.",
                 possibilities: json.possibilities || [],
-                concernLevel: json.concernLevel || "Medium",
+                concernLevel: json.concernLevel,
                 suggestions: json.suggestions || [],
                 disclaimer: "This is not medical advice. Please consult a healthcare provider.",
                 imageUrl: json.imageUrl || selectedImage || "",
@@ -209,6 +209,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
               onAnalysisComplete(result);
               toast({ title: "Analysis complete", description: "Image analyzed successfully." });
               resolve();
+              //console.log(json.concernLevel)
             } catch (err) {
               reject(new Error("Invalid server response"));
             }
@@ -245,6 +246,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
     setSelectedFile(null);
     setUploadProgress(null);
   };
+  
 
   const downloadImage = () => {
     if (!selectedImage) return;

@@ -1,8 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 import { AnalysisResult } from "./ImageUpload";
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown from "react-markdown";
 
 interface AnalysisResultsProps {
   result: AnalysisResult;
@@ -25,11 +25,19 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-semibold text-foreground">Analysis Summary</h3>
           <Badge
-            variant={result.concernLevel === "Low" ? "secondary" : "default"}
+            variant={
+              result.concernLevel === "Low"
+                ? "secondary"
+                : result.concernLevel === "Medium"
+                ? "default"
+                : "destructive"
+            }
             className={
               result.concernLevel === "Low"
                 ? "bg-secondary text-secondary-foreground"
-                : "bg-warning text-warning-foreground"
+                : result.concernLevel === "Medium"
+                ? "bg-yellow-400 text-yellow-900"
+                : "bg-destructive text-destructive-foreground"
             }
           >
             {result.concernLevel} Concern Level
@@ -41,20 +49,40 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
       <Card className="p-6 shadow-card">
         <div className="flex items-start gap-3">
           <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-          <div className="space-y-2 w-full">
-            <h4 className="font-semibold text-foreground">Analysis Summary</h4>
-            <div className="text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown
-                components={{
-                  h1: ({ node, ...props }) => <h1 className="text-2xl font-bold text-foreground text-center border-b border-border pb-2 mb-4" {...props} />,
-                  h2: ({ node, ...props }) => <h2 className="text-xl font-semibold text-foreground text-center border-b border-border pb-2 mb-3" {...props} />,
-                  h3: ({ node, ...props }) => <h3 className="text-lg font-medium text-foreground text-center border-b border-border pb-2 mb-2" {...props} />,
-                  p: ({ node, ...props }) => <p className="leading-relaxed mb-2 last:mb-0" {...props} />,
-                }}
-              >
-                {result.visualDescription}
-              </ReactMarkdown>
-            </div>
+          <div className="w-full">
+            <ReactMarkdown
+              components={{
+                h1: ({ node, ...props }) => (
+                  <h1
+                    className="text-2xl font-bold text-foreground text-center border-b border-border pb-2 mb-4"
+                    {...props}
+                  />
+                ),
+                h2: ({ node, ...props }) => (
+                  <h2
+                    className="text-xl font-semibold text-foreground border-b border-border pb-2 mb-3"
+                    {...props}
+                  />
+                ),
+                h3: ({ node, ...props }) => (
+                  <h3
+                    className="text-lg font-medium text-foreground border-b border-border pb-2 mb-2"
+                    {...props}
+                  />
+                ),
+                p: ({ node, ...props }) => (
+                  <p className="leading-relaxed mb-2 last:mb-0" {...props} />
+                ),
+                li: ({ node, ...props }) => (
+                  <li className="ml-4 list-disc mb-1 last:mb-0" {...props} />
+                ),
+                ul: ({ node, ...props }) => (
+                  <ul className="pl-4 mb-2 last:mb-0" {...props} />
+                ),
+              }}
+            >
+              {result.visualDescription}
+            </ReactMarkdown>
           </div>
         </div>
       </Card>

@@ -59,24 +59,37 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const result = await imageModel.generateContent({
-          contents: [{
-            role: 'user',
-            parts: [
-              { text: "Analyze this skin image and provide your response in two sections:\n\n1. Possible Conditions: List potential skin conditions that match the visual characteristics. Remember to note that these are possibilities based on visual characteristics only and accurate diagnosis requires a healthcare professional.\n\n2. General Care Suggestions: Provide general care and management suggestions that would be appropriate for the visible symptoms.\n\nFormat your response in a structured way that can be easily parsed into these two sections." },
-              {
-                inlineData: {
-                  mimeType: req.file.mimetype,
-                  data: imageBytes.toString("base64")
-                }
-              }
-            ]
-          }]
-        });
+       const result = await imageModel.generateContent({
+  contents: [{
+    role: 'user',
+    parts: [
+      {
+        text: `
+              Analyze this skin image and provide your response in three sections:
+
+              1. Possible Conditions: List potential skin conditions that match the visual characteristics. Note that these are possibilities only and accurate diagnosis requires a healthcare professional.
+
+              2. General Care Suggestions: Provide general care and management suggestions appropriate for the visible symptoms.
+
+              3. Concern Level: Provide a single word describing the concern level: Low, Medium, or High. Base it on severity, urgency, or risk factors.
+
+              Format your response in a structured way that can be easily parsed into these two sections.
+        `
+      },
+      {
+        inlineData: {
+          mimeType: req.file.mimetype,
+          data: imageBytes.toString("base64")
+        }
+      }
+    ]
+  }]
+});
+
         
         // If successful, parse and return the structured result
         const response = await result.response;
-        const text = response.text();
+        let text = response.text();
         
         // Parse the response into sections using more flexible pattern matching
         const possibleConditionsMatch = text.match(/(?:### )?(?:1\. )?Possible Conditions:?([^]*?)(?=(?:### )?(?:2\. )?General Care Suggestions|$)/si);
@@ -130,13 +143,23 @@ app.post("/upload", upload.single("file"), async (req, res) => {
           possibilitiesList,
           suggestionsList
         });
+
         
+
+        // extract the concern level and then filter it out of the full analysis 
+        const concernMatch = text.match(/\**\s*(?:3\.)?\s*Concern Level:\**\s*\n?\s*(Low|Medium|High)/i);
+        const concernLevel = concernMatch ? concernMatch[1] : "Medium";
+        //console.log("server " + concernMatch)
+        //text = text.replace(/(?<!\n)(1\.\s)/g, '\n$1').replace(/(?<!\n)(2\.\s)/g, '\n$1');
+        const textWithoutConcern = text.replace(/(?:### )?(?:3\. )?Concern Level:?.*$/si, '').trim();
+        console.log(textWithoutConcern)
         return res.json({
           imageUrl: fileUrl,
           visualDescription: initialDescription,
           possibilities: possibilitiesList,
           suggestions: suggestionsList,
           fullAnalysis: text,
+          concernLevel: concernLevel
         });
       } catch (error) {
         lastError = error;
