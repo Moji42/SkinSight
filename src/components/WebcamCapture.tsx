@@ -13,6 +13,9 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  // Keep a ref to the current MediaStream to avoid stale closures when
+  // stopping/starting tracks from inside callbacks.
+  const currentStreamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
@@ -21,27 +24,39 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
 
   // Start or restart webcam when facingMode changes
   const startWebcam = useCallback(async () => {
-    // Stop current stream if exists before starting new one
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+    // Stop any existing stream (use ref to avoid stale closure problems)
+    if (currentStreamRef.current) {
+      currentStreamRef.current.getTracks().forEach((t) => t.stop());
+      currentStreamRef.current = null;
       setStream(null);
     }
 
     setLoading(true);
     setError(null);
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      // request camera with facing mode preference
+      const constraints: MediaStreamConstraints = {
         video: { facingMode },
         audio: false,
-      });
+      };
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // store on ref and state
+      currentStreamRef.current = mediaStream;
       setStream(mediaStream);
+
+      // attach to video element immediately
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        // try to play if needed (some browsers require user action)
         try {
+          // some browsers require direct assignment
+          // and playing only after srcObject is set
+          videoRef.current.srcObject = mediaStream;
           await videoRef.current.play();
-        } catch {
-          // ignore
+        } catch (playErr) {
+          // If autoplay is blocked, keep the stream attached and
+          // the UI shows the user can manually allow play.
+          // We'll not throw here; instead rely on visible error if needed.
+          // console.debug('Auto-play blocked or play failed', playErr);
         }
       }
       setError(null);
@@ -68,10 +83,44 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
   // Cleanup when unmounting
   useEffect(() => {
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (currentStreamRef.current) {
+        currentStreamRef.current.getTracks().forEach((track) => track.stop());
+        currentStreamRef.current = null;
+        setStream(null);
       }
     };
+    // run only on unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Ensure the video element is attached to the current stream and try to play
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // attach srcObject when stream state changes
+    if (stream) {
+      try {
+        if (video.srcObject !== stream) {
+          video.srcObject = stream;
+        }
+      } catch (err) {
+        // ignore
+      }
+
+      const onLoaded = async () => {
+        try {
+          await video.play();
+        } catch {
+          // autoplay might be blocked; userStart fallback exists
+        }
+      };
+
+      video.addEventListener("loadedmetadata", onLoaded);
+      return () => {
+        video.removeEventListener("loadedmetadata", onLoaded);
+      };
+    }
   }, [stream]);
 
   const handleCaptureToPreview = () => {
@@ -118,8 +167,9 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
         onCapture(file);
         // clear preview and stop camera
         setPreviewDataUrl(null);
-        if (stream) {
-          stream.getTracks().forEach((t) => t.stop());
+        if (currentStreamRef.current) {
+          currentStreamRef.current.getTracks().forEach((t) => t.stop());
+          currentStreamRef.current = null;
           setStream(null);
         }
       },
@@ -134,6 +184,63 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
       // resume video playback
       try {
         videoRef.current.play();
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  // Debug info to help identify why video might be blank in some environments.
+  const [debugInfo, setDebugInfo] = useState({ active: false, tracks: 0, width: 0, height: 0 });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = currentStreamRef.current;
+      const active = !!s?.active;
+      const tracks = s ? s.getTracks().length : 0;
+      const width = videoRef.current?.videoWidth || 0;
+      const height = videoRef.current?.videoHeight || 0;
+      setDebugInfo((prev) => {
+        if (prev.active === active && prev.tracks === tracks && prev.width === width && prev.height === height)
+          return prev;
+        return { active, tracks, width, height };
+      });
+    }, 500);
+    return () => clearInterval(id);
+  }, []);
+
+  // Show a user-initiated start button when stream is active but video has no frames
+  const [showStartButton, setShowStartButton] = useState(false);
+  useEffect(() => {
+    // if stream is active but video dimensions are zero, suggest user action
+    if (debugInfo.active && debugInfo.tracks > 0 && debugInfo.width === 0 && debugInfo.height === 0) {
+      setShowStartButton(true);
+    } else {
+      setShowStartButton(false);
+    }
+  }, [debugInfo]);
+
+  const handleUserStart = async () => {
+    try {
+      if (videoRef.current) {
+        await videoRef.current.play();
+      }
+      // re-attach/play by restarting webcam as a fallback
+      if ((!videoRef.current || (videoRef.current && (videoRef.current.videoWidth === 0 && videoRef.current.videoHeight === 0))) && currentStreamRef.current) {
+        // try re-assigning srcObject and play
+        if (videoRef.current) videoRef.current.srcObject = currentStreamRef.current;
+        try {
+          await videoRef.current?.play();
+        } catch {
+          // if still failing, try to re-request camera
+          await startWebcam();
+        }
+      }
+    } catch (err) {
+      // best-effort: if play fails, try restarting webcam which will trigger permission prompts again
+      // eslint-disable-next-line no-console
+      console.debug("User start failed, attempting restart:", err);
+      try {
+        await startWebcam();
       } catch {
         // ignore
       }
@@ -169,8 +276,10 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
         className="absolute top-2 right-2 z-10"
         onClick={() => {
           // ensure tracks are stopped when closing
-          if (stream) {
-            stream.getTracks().forEach((t) => t.stop());
+          if (currentStreamRef.current) {
+            currentStreamRef.current.getTracks().forEach((t) => t.stop());
+            currentStreamRef.current = null;
+            setStream(null);
           }
           onCancel();
         }}
@@ -228,6 +337,29 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
           </div>
 
           <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
+            {/* Debug overlay: shows stream/video state to help diagnose blank video */}
+            <div
+              aria-hidden
+              className="absolute top-2 left-2 z-20 pointer-events-none"
+            >
+              <div className="bg-black/60 text-white text-xs rounded px-2 py-1">
+                <div>stream: {debugInfo.active ? "active" : "inactive"}</div>
+                <div>tracks: {debugInfo.tracks}</div>
+                <div>video: {debugInfo.width}x{debugInfo.height}</div>
+              </div>
+            </div>
+
+            {/* User-start button (appears when stream is active but video has no frames) */}
+            {showStartButton && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-auto">
+                <button
+                  onClick={handleUserStart}
+                  className="bg-white/90 text-black px-4 py-2 rounded shadow"
+                >
+                  Click to start camera
+                </button>
+              </div>
+            )}
             {/* Video or preview */}
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -284,8 +416,10 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
 
             <div className="ml-auto flex gap-2">
               <Button variant="ghost" onClick={() => {
-                if (stream) {
-                  stream.getTracks().forEach(t => t.stop());
+                if (currentStreamRef.current) {
+                  currentStreamRef.current.getTracks().forEach(t => t.stop());
+                  currentStreamRef.current = null;
+                  setStream(null);
                 }
                 onCancel();
               }}>Cancel</Button>
