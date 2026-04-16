@@ -44,7 +44,7 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-hero">
+    <div className="min-h-screen bg-gradient-hero flex flex-col">
       {/* Header */}
       <header className="w-full py-6 px-4 sm:px-6 lg:px-8 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -71,7 +71,7 @@ const Index = () => {
       </header>
 
       {/* Main Content */}
-      <main className="py-12 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
         {appState === "upload" && (
           <ImageUpload
             onAnalysisComplete={handleAnalysisComplete}
@@ -85,6 +85,21 @@ const Index = () => {
           <ChatInterface imageContext={analysisResult?.visualDescription} />
         )}
       </main>
+
+      <footer className="w-full py-4 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/40 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
+          View the source on{" "}
+          <a
+            href="https://github.com/PandaCoder123/SkinSight"
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
+            GitHub
+          </a>
+          .
+        </div>
+      </footer>
     </div>
   );
 };

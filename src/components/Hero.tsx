@@ -84,6 +84,21 @@ export const Hero = ({ onGetStarted }: HeroProps) => {
           </div>
         </div>
       </div>
+
+      <footer className="w-full py-4 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/40 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
+          View the source on{" "}
+          <a
+            href="https://github.com/PandaCoder123/SkinSight"
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
+            GitHub
+          </a>
+          .
+        </div>
+      </footer>
     </div>
   );
 };
