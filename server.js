@@ -3,17 +3,30 @@ import cors from "cors";
 import multer from "multer";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
-
-const app = express();
-app.use(cors());
-const upload = multer({ storage: multer.memoryStorage() });
 
 if (!process.env.GROQ_API_KEY) {
   throw new Error("Missing GROQ_API_KEY in .env file.");
 }
 
+const app = express();
+
+const allowedOrigin = process.env.ALLOWED_ORIGIN || "http://localhost:5173";
+app.use(cors({ origin: allowedOrigin }));
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests — please try again in 15 minutes." },
+});
+
+app.use(express.json());
+
+const upload = multer({ storage: multer.memoryStorage() });
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const PROMPT = `You are an educational skin analysis assistant. Analyze this skin image and respond ONLY with valid JSON in exactly this shape (no markdown, no extra text):
@@ -27,7 +40,7 @@ const PROMPT = `You are an educational skin analysis assistant. Analyze this ski
 }
 concernLevel must be exactly "Low", "Medium", or "High". Include 2-4 possible conditions. Educational purposes only, not medical diagnosis.`;
 
-app.post("/upload", upload.single("file"), async (req, res) => {
+app.post("/upload", limiter, upload.single("file"), async (req, res) => {
   try {
     const base64Image = req.file.buffer.toString("base64");
     const mimeType = req.file.mimetype;
@@ -52,13 +65,11 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     res.json(parsed);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong: " + err.message });
+    res.status(500).json({ error: "Analysis failed. Please try again." });
   }
 });
 
-app.use(express.json());
-
-app.post("/chat", async (req, res) => {
+app.post("/chat", limiter, async (req, res) => {
   try {
     const { messages, imageContext } = req.body;
 
@@ -77,7 +88,7 @@ app.post("/chat", async (req, res) => {
     res.json({ response: completion.choices[0].message.content });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong: " + err.message });
+    res.status(500).json({ error: "Chat failed. Please try again." });
   }
 });
 

@@ -25,7 +25,6 @@ export interface AnalysisResult {
 }
 
 export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadProps) => {
-  const SAMPLE_IMAGE_PATH = "/mouth-issue.webp";
   const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB cap
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -149,23 +148,6 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
     if (file) processImage(file);
   };
 
-  // Loads sample image from public folder.
-  const loadSample = async () => {
-    try {
-      const res = await fetch(SAMPLE_IMAGE_PATH);
-      if (!res.ok) {
-        showError("Sample load failed", `Could not fetch ${SAMPLE_IMAGE_PATH}`);
-        return;
-      }
-      const blob = await res.blob();
-      const file = blobToFile(blob, "mouth-issue.webp");
-      processImage(file);
-    } catch (err) {
-      console.error("Sample load error:", err);
-      showError("Sample load failed", "Could not load sample image.");
-    }
-  };
-
   // --- analysis with upload progress via XHR ---
   const analyzeFile = async (file: File) => {
     setIsAnalyzing(true);
@@ -177,8 +159,8 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
       // prefer XHR to report upload progress
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        const port = import.meta.env.VITE_DEV_SERVER_PORT || 3000;
-        xhr.open("POST", `http://localhost:${port}/upload`, true);
+        const apiBase = import.meta.env.VITE_API_URL ?? `http://localhost:${import.meta.env.VITE_DEV_SERVER_PORT ?? 3000}`;
+        xhr.open("POST", `${apiBase}/upload`, true);
 
         xhr.upload.onprogress = (ev) => {
           if (ev.lengthComputable) {
@@ -277,16 +259,13 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
                       Drag and drop an image here, or click to select
                     </p>
                   </div>
-                  <div className="grid w-full max-w-xl grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+                  <div className="grid w-full max-w-xl grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                     <Button className="w-full" variant="outline" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
                       Select Image
                     </Button>
                     <Button className="w-full" variant="outline" onClick={(e) => { e.stopPropagation(); setShowWebcam(true); }}>
                       <Camera className="mr-2 h-4 w-4" />
                       Use Webcam
-                    </Button>
-                    <Button className="w-full" variant="outline" onClick={(e) => { e.stopPropagation(); loadSample(); }} title="Load sample image">
-                      Load sample
                     </Button>
                   </div>
                   <input

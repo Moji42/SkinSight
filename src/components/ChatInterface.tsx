@@ -34,8 +34,8 @@ export const ChatInterface = ({ imageContext }: ChatInterfaceProps) => {
     setIsLoading(true);
 
     try {
-      const port = import.meta.env.VITE_DEV_SERVER_PORT || 3000;
-      const response = await fetch(`http://localhost:${port}/chat`, {
+      const apiBase = import.meta.env.VITE_API_URL ?? `http://localhost:${import.meta.env.VITE_DEV_SERVER_PORT ?? 3000}`;
+      const response = await fetch(`${apiBase}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
