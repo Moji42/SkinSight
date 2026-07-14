@@ -13,7 +13,9 @@ if (!process.env.GROQ_API_KEY) {
 
 const app = express();
 
-const allowedOrigin = process.env.ALLOWED_ORIGIN || "http://localhost:5173";
+const allowedOrigin = process.env.ALLOWED_ORIGIN
+  ? process.env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
+  : ["http://localhost:5173", "http://localhost:8080"];
 app.use(cors({ origin: allowedOrigin }));
 
 const limiter = rateLimit({
