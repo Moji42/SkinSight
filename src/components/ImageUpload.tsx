@@ -25,6 +25,7 @@ export interface AnalysisResult {
 }
 
 export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadProps) => {
+  const SAMPLE_IMAGE_PATH = "/mouth-issue.webp";
   const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB cap
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -148,6 +149,22 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
     if (file) processImage(file);
   };
 
+  const loadSample = async () => {
+    try {
+      const res = await fetch(SAMPLE_IMAGE_PATH);
+      if (!res.ok) {
+        showError("Sample load failed", "Could not load the sample image.");
+        return;
+      }
+      const blob = await res.blob();
+      const file = blobToFile(blob, "mouth-issue.webp");
+      processImage(file);
+    } catch (err) {
+      console.error("Sample load error:", err);
+      showError("Sample load failed", "Could not load the sample image.");
+    }
+  };
+
   // --- analysis with upload progress via XHR ---
   const analyzeFile = async (file: File) => {
     setIsAnalyzing(true);
@@ -259,13 +276,16 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
                       Drag and drop an image here, or click to select
                     </p>
                   </div>
-                  <div className="grid w-full max-w-xl grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                  <div className="grid w-full max-w-xl grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
                     <Button className="w-full" variant="outline" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
                       Select Image
                     </Button>
                     <Button className="w-full" variant="outline" onClick={(e) => { e.stopPropagation(); setShowWebcam(true); }}>
                       <Camera className="mr-2 h-4 w-4" />
                       Use Webcam
+                    </Button>
+                    <Button className="w-full" variant="outline" onClick={(e) => { e.stopPropagation(); loadSample(); }}>
+                      Load Sample
                     </Button>
                   </div>
                   <input
