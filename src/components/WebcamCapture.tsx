@@ -283,7 +283,7 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
             </div>
           </div>
 
-          <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
+          <div className="relative rounded-lg overflow-hidden bg-black aspect-video max-h-[50vh] flex items-center justify-center">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <svg
@@ -315,35 +315,32 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {previewDataUrl ? (
               <>
-                <Button onClick={confirmCapture} className="flex-1 sm:flex-none gap-2">
+                <Button onClick={confirmCapture} className="flex-1 gap-2">
                   <Camera className="h-4 w-4" />
                   Use Photo
                 </Button>
-                <Button variant="outline" onClick={retake} className="gap-2">
+                <Button variant="outline" onClick={retake} className="flex-1 gap-2">
                   Retake
                 </Button>
               </>
             ) : (
               <>
-                <Button onClick={handleCaptureToPreview} className="w-full sm:w-auto gap-2">
+                <Button onClick={handleCaptureToPreview} className="flex-1 gap-2">
                   <Camera className="h-4 w-4" />
-                  Capture & Preview
+                  Capture
                 </Button>
                 <Button onClick={startWebcam} variant="outline" className="gap-2">
                   <RefreshCw className="h-4 w-4" />
-                  Restart Camera
+                  Restart
                 </Button>
               </>
             )}
-
-            <div className="ml-auto flex gap-2">
-              <Button variant="ghost" onClick={handleCancel}>
-                Cancel
-              </Button>
-            </div>
+            <Button variant="ghost" onClick={handleCancel}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}

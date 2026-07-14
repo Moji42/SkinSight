@@ -21,7 +21,7 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
 
       {/* Concern Level */}
       <Card className="p-6 shadow-card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <h3 className="text-xl font-semibold text-foreground">Analysis Summary</h3>
           <Badge
             variant={result.concernLevel === "Low" ? "secondary" : "default"}

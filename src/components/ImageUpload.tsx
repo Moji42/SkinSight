@@ -233,7 +233,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
         </div>
       ) : (
         <>
-          <Card className="p-8 border-2 border-dashed border-border bg-card shadow-card">
+          <Card className="p-4 sm:p-8 border-2 border-dashed border-border bg-card shadow-card">
             {!selectedImage ? (
               <div
                 role="button"
@@ -249,7 +249,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
                 onDrop={handleDrop}
                 className={`relative transition-colors duration-200 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary p-6 ${isDragging ? "bg-primary/5" : ""}`}
               >
-                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <div className="flex flex-col items-center justify-center py-8 sm:py-12 space-y-4">
                   <div className="p-4 bg-primary/10 rounded-full">
                     <Upload className="h-12 w-12 text-primary" />
                   </div>

@@ -71,7 +71,7 @@ const Index = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 py-6 sm:py-12 px-4 sm:px-6 lg:px-8">
         {appState === "upload" && (
           <ImageUpload
             onAnalysisComplete={handleAnalysisComplete}
@@ -89,13 +89,10 @@ const Index = () => {
       <footer className="w-full py-6 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/40 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto text-center space-y-2 text-sm text-muted-foreground">
           <p className="font-medium text-foreground">An AI Society project for the Maker Space at Arizona State University</p>
-          <p>
+          <p className="flex flex-wrap justify-center gap-x-3 gap-y-1">
             <a href="mailto:yhmohame@asu.edu" className="hover:text-primary transition-colors">yhmohame@asu.edu</a>
-            {" · "}
             <a href="mailto:sambari1@asu.edu" className="hover:text-primary transition-colors">sambari1@asu.edu</a>
-            {" · "}
             <a href="mailto:knazarov@asu.edu" className="hover:text-primary transition-colors">knazarov@asu.edu</a>
-            {" · "}
             <a href="mailto:nrmohame@asu.edu" className="hover:text-primary transition-colors">nrmohame@asu.edu</a>
           </p>
           <p>
