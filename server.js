@@ -1,63 +1,83 @@
 import express from "express";
+import cors from "cors";
 import multer from "multer";
-import admin from "firebase-admin";
-import { OpenAI } from "openai";
+import Groq from "groq-sdk";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
+app.use(cors());
 const upload = multer({ storage: multer.memoryStorage() });
 
-const requiredEnvVars = [
-  "FIREBASE_PROJECT_ID",
-  "FIREBASE_CLIENT_EMAIL",
-  "FIREBASE_PRIVATE_KEY",
-  "FIREBASE_STORAGE_BUCKET",
-  "OPENAI_API_KEY",
-  "OPENAI_MODEL_WITH_VISION",
-];
-
-const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
-if (missingEnvVars.length > 0) {
-  throw new Error(
-    `Missing required environment variables: ${missingEnvVars.join(", ")}. ` +
-      "Copy .env.example to .env and fill in all required values."
-  );
+if (!process.env.GROQ_API_KEY) {
+  throw new Error("Missing GROQ_API_KEY in .env file.");
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-  }),
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const bucket = admin.storage().bucket();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const PROMPT = `You are an educational skin analysis assistant. Analyze this skin image and respond ONLY with valid JSON in exactly this shape (no markdown, no extra text):
+{
+  "visualDescription": "2-3 sentence description of what is visible",
+  "possibilities": [
+    { "condition": "Condition name", "description": "Brief educational description" }
+  ],
+  "concernLevel": "Low",
+  "suggestions": ["suggestion 1", "suggestion 2"]
+}
+concernLevel must be exactly "Low", "Medium", or "High". Include 2-4 possible conditions. Educational purposes only, not medical diagnosis.`;
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const file = bucket.file(`uploads/${Date.now()}-${req.file.originalname}`);
-    await file.save(req.file.buffer, { contentType: req.file.mimetype });
-    const [url] = await file.getSignedUrl({ action: "read", expires: Date.now() + 10 * 60 * 1000 });
+    const base64Image = req.file.buffer.toString("base64");
+    const mimeType = req.file.mimetype;
 
-    const result = await openai.responses.create({
-      model: process.env.OPENAI_MODEL_WITH_VISION,
-      input: [
-        { role: "user", content: `Describe this image: ${url}` },
+    const completion = await groq.chat.completions.create({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: PROMPT },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } },
+          ],
+        },
       ],
     });
 
-    res.json({
-      imageUrl: url,
-      analysis: result.output[0].content[0].text,
-    });
+    const text = completion.choices[0].message.content.trim();
+    const jsonText = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+    const parsed = JSON.parse(jsonText);
+
+    res.json(parsed);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong" });
+    res.status(500).json({ error: "Something went wrong: " + err.message });
+  }
+});
+
+app.use(express.json());
+
+app.post("/chat", async (req, res) => {
+  try {
+    const { messages, imageContext } = req.body;
+
+    const systemMessage = imageContext
+      ? `You are a helpful skin care education assistant. The user previously had their skin analyzed with this description: "${imageContext}". Answer their questions educationally. Never provide a medical diagnosis.`
+      : "You are a helpful skin care education assistant. Answer questions educationally. Never provide a medical diagnosis.";
+
+    const completion = await groq.chat.completions.create({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      messages: [
+        { role: "system", content: systemMessage },
+        ...messages,
+      ],
+    });
+
+    res.json({ response: completion.choices[0].message.content });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong: " + err.message });
   }
 });
 

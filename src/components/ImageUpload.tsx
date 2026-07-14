@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, Loader2, AlertCircle, Camera, Download, Trash2 } from "lucide-react";
+import { Upload, Loader2, AlertCircle, Camera, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { WebcamCapture } from "./WebcamCapture";
 
@@ -25,7 +25,7 @@ export interface AnalysisResult {
 }
 
 export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadProps) => {
-  const SAMPLE_IMAGE_PATH = "/SampleImgs/SampleImage.jpg";
+  const SAMPLE_IMAGE_PATH = "/mouth-issue.webp";
   const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB cap
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -42,11 +42,11 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
 
   const validateFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
-      showError("Invalid file type", "Please upload an image (jpg, png, etc.).");
+      showError("Unsupported file type", "Please upload an image — JPG, PNG, WEBP, and most other image formats work.");
       return false;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      showError("File too large", `Please upload an image smaller than ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB.`);
+      showError("Image is too large", `Please upload an image under ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB.`);
       return false;
     }
     return true;
@@ -106,7 +106,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
       setSelectedImage(imageUrl);
       onImageSelect(imageUrl);
     };
-    reader.onerror = () => showError("Preview failed", "Could not read the image for preview.");
+    reader.onerror = () => showError("Preview failed", "Couldn't show a preview of that image. Please try a different file.");
     reader.readAsDataURL(file);
   };
 
@@ -121,7 +121,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
       setPreviewFromFile(finalFile);
     } catch (err) {
       console.error("Process image error:", err);
-      showError("Image processing failed", (err instanceof Error && err.message) ? err.message : undefined);
+      showError("Image processing failed", "Something went wrong while preparing your image. Please try a different file.");
     }
   };
 
@@ -158,11 +158,11 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
         return;
       }
       const blob = await res.blob();
-      const file = blobToFile(blob, "SampleImage.jpg");
+      const file = blobToFile(blob, "mouth-issue.webp");
       processImage(file);
     } catch (err) {
       console.error("Sample load error:", err);
-      showError("Sample load failed", "Could not load sample image from public/SampleImgs.");
+      showError("Sample load failed", "Could not load sample image.");
     }
   };
 
@@ -222,7 +222,7 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
       });
     } catch (err) {
       console.error("Analysis error:", err);
-      showError("Analysis failed", (err instanceof Error && err.message) ? err.message : undefined);
+      showError("Analysis failed", "Couldn't analyze the image. Please check your connection and try again.");
     } finally {
       setIsAnalyzing(false);
       setUploadProgress(null);
@@ -242,16 +242,6 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
     setUploadProgress(null);
   };
   
-
-  const downloadImage = () => {
-    if (!selectedImage) return;
-    const a = document.createElement("a");
-    a.href = selectedImage;
-    a.download = `skin-upload-${Date.now()}.jpg`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
@@ -320,10 +310,6 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
                 </div>
 
                 <div className="flex items-center justify-end gap-2">
-                  <Button variant="outline" onClick={downloadImage} title="Download image">
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
                   <Button variant="destructive" onClick={handleRemoveImage} title="Remove image">
                     <Trash2 className="h-4 w-4 mr-2" />
                     Remove

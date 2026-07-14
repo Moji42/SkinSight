@@ -53,6 +53,9 @@ google-credentials.json
 *.sln
 *.sw?
 
+# Claude Code settings
+.claude/
+
 # Misc
 *.log
 *.local

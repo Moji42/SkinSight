@@ -58,7 +58,9 @@ export const AnalysisResults = ({ result }: AnalysisResultsProps) => {
             {result.possibilities.map((possibility, index) => (
               <li key={index} className="flex items-start gap-2">
                 <span className="text-primary mt-1">•</span>
-                <span className="text-muted-foreground">{possibility}</span>
+                <span className="text-muted-foreground">
+                  <strong>{possibility.condition}:</strong> {possibility.description}
+                </span>
               </li>
             ))}
           </ul>

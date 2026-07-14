@@ -86,18 +86,23 @@ const Index = () => {
         )}
       </main>
 
-      <footer className="w-full py-4 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/40 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
-          View the source on{" "}
-          <a
-            href="https://github.com/PandaCoder123/SkinSight"
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary hover:underline"
-          >
-            GitHub
-          </a>
-          .
+      <footer className="w-full py-6 px-4 sm:px-6 lg:px-8 border-t border-border bg-card/40 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto text-center space-y-2 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">An AI Society project for the Maker Space at Arizona State University</p>
+          <p>
+            <a href="mailto:yhmohame@asu.edu" className="hover:text-primary transition-colors">yhmohame@asu.edu</a>
+            {" · "}
+            <a href="mailto:sambari1@asu.edu" className="hover:text-primary transition-colors">sambari1@asu.edu</a>
+            {" · "}
+            <a href="mailto:knazarov@asu.edu" className="hover:text-primary transition-colors">knazarov@asu.edu</a>
+            {" · "}
+            <a href="mailto:nrmohame@asu.edu" className="hover:text-primary transition-colors">nrmohame@asu.edu</a>
+          </p>
+          <p>
+            <a href="https://github.com/PandaCoder123/SkinSight" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">
+              github.com/PandaCoder123/SkinSight
+            </a>
+          </p>
         </div>
       </footer>
     </div>

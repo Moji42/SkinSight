@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Camera, X, AlertCircle, Download, RefreshCw, RotateCw } from "lucide-react";
+import { Camera, X, AlertCircle, RefreshCw, RotateCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface WebcamCaptureProps {
@@ -41,19 +41,19 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
   const getUserFriendlyCameraError = (err: unknown) => {
     if (err instanceof DOMException) {
       if (err.name === "NotAllowedError") {
-        return "Camera permission was denied. Please allow camera access and try again.";
+        return "Camera access was blocked. Please click 'Allow' when your browser asks for camera permission, then try again.";
       }
       if (err.name === "NotFoundError") {
-        return "No camera was detected on this device.";
+        return "No camera was found on your device. Please connect a webcam and try again.";
       }
       if (err.name === "NotReadableError") {
-        return "Camera is busy in another app or browser tab. Close other camera apps and retry.";
+        return "Your camera is being used by another app or browser tab. Close those and try again.";
       }
       if (err.name === "OverconstrainedError") {
-        return "Selected camera constraints are not supported. Trying fallback camera settings.";
+        return "Your camera doesn't support the selected settings — we'll try again with different settings.";
       }
     }
-    return "Could not access camera. Please ensure permissions are granted and try again.";
+    return "We couldn't start your camera. Make sure your browser has camera permission and try again.";
   };
 
   const startWebcam = useCallback(async () => {
@@ -91,7 +91,7 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API is not available in this browser.");
+        throw new Error("Your browser doesn't support camera access. Please try Chrome or Firefox.");
       }
 
       const mediaStream = await requestCameraStream();
@@ -168,7 +168,7 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
     const h = video.videoHeight;
 
     if (!w || !h) {
-      setError("Camera is still initializing. Please wait a moment and try again.");
+      setError("The camera is still warming up — give it a second and try again.");
       return;
     }
 
@@ -184,7 +184,7 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
       video.pause();
     } catch (err) {
       console.error("Preview error:", err);
-      setError("Failed to create preview. Please try again.");
+      setError("Couldn't create the photo preview. Please try capturing again.");
     }
   };
 
@@ -194,7 +194,7 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
     canvasRef.current.toBlob(
       (blob) => {
         if (!blob) {
-          setError("Failed to create image file.");
+          setError("Couldn't save your photo. Please try again.");
           return;
         }
         const file = new File([blob], `webcam-capture-${Date.now()}.jpg`, {
@@ -214,16 +214,6 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
     setPreviewDataUrl(null);
     setError(null);
     startWebcam();
-  };
-
-  const downloadPreview = () => {
-    if (!previewDataUrl) return;
-    const a = document.createElement("a");
-    a.href = previewDataUrl;
-    a.download = `webcam-preview-${Date.now()}.jpg`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
   };
 
   const handleFlip = () => {
@@ -334,10 +324,6 @@ export const WebcamCapture = ({ onCapture, onCancel }: WebcamCaptureProps) => {
                 </Button>
                 <Button variant="outline" onClick={retake} className="gap-2">
                   Retake
-                </Button>
-                <Button variant="ghost" onClick={downloadPreview} className="gap-2">
-                  <Download className="h-4 w-4" />
-                  Download
                 </Button>
               </>
             ) : (
