@@ -13,7 +13,7 @@ export const Hero = ({ onGetStarted }: HeroProps) => {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold text-foreground">MediQuip</h1>
+            <h1 className="text-2xl font-bold text-foreground">SkinSight</h1>
           </div>
         </div>
       </header>
@@ -40,7 +40,7 @@ export const Hero = ({ onGetStarted }: HeroProps) => {
               <div className="text-left space-y-2">
                 <h3 className="font-semibold text-foreground">Important Medical Disclaimer</h3>
                 <p className="text-sm text-muted-foreground">
-                  MediQuip provides general educational information only and is not a substitute for professional medical advice, 
+                  SkinSight provides general educational information only and is not a substitute for professional medical advice, 
                   diagnosis, or treatment. Always consult a qualified healthcare provider for medical concerns.
                 </p>
               </div>
