@@ -42,6 +42,8 @@ const PROMPT = `You are an educational skin analysis assistant. Analyze this ski
 }
 concernLevel must be exactly "Low", "Medium", or "High". Include 2-4 possible conditions. Educational purposes only, not medical diagnosis.`;
 
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
 app.post("/upload", limiter, upload.single("file"), async (req, res) => {
   try {
     const base64Image = req.file.buffer.toString("base64");
