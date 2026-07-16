@@ -96,8 +96,8 @@ const Index = () => {
             <a href="mailto:nrmohame@asu.edu" className="hover:text-primary transition-colors">nrmohame@asu.edu</a>
           </p>
           <p>
-            <a href="https://github.com/PandaCoder123/SkinSight" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">
-              github.com/PandaCoder123/SkinSight
+            <a href="https://github.com/Moji42/SkinSight" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors">
+              github.com/Moji42/SkinSight
             </a>
           </p>
         </div>
