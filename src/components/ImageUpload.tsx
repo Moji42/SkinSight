@@ -208,20 +208,27 @@ export const ImageUpload = ({ onAnalysisComplete, onImageSelect }: ImageUploadPr
               reject(new Error("Invalid server response"));
             }
           } else {
-            reject(new Error(`Server returned ${xhr.status}: ${xhr.responseText}`));
+            let message = `The analysis server returned an error (${xhr.status}). Please try again later.`;
+            try {
+              const body = JSON.parse(xhr.responseText);
+              if (typeof body.error === "string" && body.error.trim()) message = body.error;
+            } catch {
+              // Proxies can return HTML instead of the backend's JSON error.
+            }
+            reject(new Error(message));
           }
         };
 
         xhr.onerror = () => {
           setUploadProgress(null);
-          reject(new Error("Upload failed due to network error"));
+          reject(new Error("Could not reach the analysis service. Please check your connection and try again."));
         };
 
         xhr.send(form);
       });
     } catch (err) {
       console.error("Analysis error:", err);
-      showError("Analysis failed", "Couldn't analyze the image. Please check your connection and try again.");
+      showError("Analysis failed", err instanceof Error ? err.message : "The analysis could not be completed. Please try again later.");
     } finally {
       setIsAnalyzing(false);
       setUploadProgress(null);
